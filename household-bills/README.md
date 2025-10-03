@@ -41,14 +41,55 @@ A Next.js application for managing household bills, receipts, and shared expense
 
 ## Environment Variables
 
-See `.env.example` for required environment variables:
+This project requires several environment variables to function properly.
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `NEXTAUTH_SECRET` - NextAuth.js secret key
-- `NEXTAUTH_URL` - Application URL
-- `REDIS_URL` - Redis connection string
-- `GCP_PROJECT_ID` - Google Cloud Project ID
-- `GCP_PROCESSOR_ID` - Document AI Processor ID
+### Setup
+
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Fill in the required values in `.env.local`:
+   - **Database:** Should work with default PostgreSQL settings
+   - **NextAuth Secret:** Generate with `openssl rand -base64 32`
+   - **LINE Credentials:** Get from [LINE Developers Console](https://developers.line.biz/console/)
+   - **Google Cloud:** Get from [Google Cloud Console](https://console.cloud.google.com/)
+
+3. Download Google Cloud credentials:
+   - Create service account in GCP
+   - Download JSON key as `gcp-credentials.json`
+   - Place in project root (parent directory)
+
+### Required Variables
+
+| Variable | Description | How to Get |
+|----------|-------------|------------|
+| `DATABASE_URL` | PostgreSQL connection string | Use local: `postgresql://postgres:postgres@localhost:5432/household_bills` |
+| `NEXTAUTH_SECRET` | NextAuth encryption secret | Generate: `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | Application URL | Use `http://localhost:3000` for development |
+| `LINE_CLIENT_ID` | LINE Login channel ID | LINE Developers Console → Channel Basic Settings |
+| `LINE_CLIENT_SECRET` | LINE Login channel secret | LINE Developers Console → Channel Basic Settings |
+| `NEXT_PUBLIC_LINE_LIFF_ID` | LIFF app ID | LINE Developers Console → LIFF tab |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API token | LINE Developers Console → Messaging API tab |
+| `LINE_CHANNEL_SECRET` | LINE Messaging channel secret | LINE Developers Console → Channel Basic Settings |
+| `GCP_PROJECT_ID` | Google Cloud project ID | Google Cloud Console → Project Info |
+| `GCP_PROCESSOR_ID` | Document AI processor ID | Google Cloud Console → Document AI → Processors |
+| `GCP_LOCATION` | Document AI processor location | Use `us` or `asia-northeast1` |
+| `REDIS_HOST` | Redis server host | Use `localhost` for development |
+| `REDIS_PORT` | Redis server port | Use `6379` for development |
+
+See `.env.example` for complete list and descriptions.
+
+### Validation
+
+Environment variables are validated automatically when you run:
+
+```bash
+pnpm dev
+```
+
+If any required variables are missing, you'll see a helpful error message.
 
 ## Development Commands
 
