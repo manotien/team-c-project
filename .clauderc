@@ -1,0 +1,10 @@
+{
+  "autoApprove": {
+    "**/.clauderc": true,
+    "mcp__playwright__browser_navigate": true,
+    "mcp__playwright__browser_type": true,
+    "mcp__playwright__browser_click": true,
+    "mcp__playwright__browser_snapshot": true,
+    "mcp__playwright__*": true
+  }
+}
