@@ -17,6 +17,7 @@ interface CreateBillRequest {
 
 interface CreateBillResponse {
   success: boolean;
+  message?: string;
   data?: {
     billId: string;
     taskId: string;
@@ -114,10 +115,8 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Create task
-      const taskTitle = body.vendor
-        ? `Pay ${body.vendor} - ${body.currency || "THB"} ${body.amount.toLocaleString()}`
-        : `Pay Bill - ${body.currency || "THB"} ${body.amount.toLocaleString()}`;
+      // Create task with title format: "Pay {vendor} bill"
+      const taskTitle = `Pay ${body.vendor || "Unknown"} bill`;
 
       const task = await tx.task.create({
         data: {
@@ -134,6 +133,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json<CreateBillResponse>({
       success: true,
+      message: "Bill and task created",
       data: {
         billId: result.bill.id,
         taskId: result.task.id,
