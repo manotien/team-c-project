@@ -1,6 +1,24 @@
-import { BillCapture } from "@/components/bill-capture/bill-capture";
+import { BillCapture } from '@/components/bill-capture/bill-capture';
+import { prisma } from '@/lib/prisma';
+import TaskList from '@/components/TaskList';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  // TODO: Replace with actual user session from NextAuth (Epic 9)
+  // For now, fetch the first user or create a demo user for development
+  const user = await prisma.user.findFirst();
+
+  // If no user exists, we'll show empty state
+  const userId = user?.id;
+
+  // Fetch tasks with bills, filtered by user and sorted by due date
+  const tasks = userId
+    ? await prisma.task.findMany({
+        where: { userId },
+        include: { bill: true },
+        orderBy: { dueDate: 'asc' },
+      })
+    : [];
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -18,9 +36,8 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="mx-auto max-w-md px-4 py-6">
-        <div className="text-center text-gray-500">
-          <p className="text-sm">Dashboard content will be implemented in future stories</p>
-        </div>
+        <h1 className="text-2xl font-bold mb-6">My Dashboard</h1>
+        <TaskList tasks={tasks} />
       </main>
     </div>
   );
