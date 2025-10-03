@@ -14,6 +14,8 @@ export function BillCapture() {
   const [open, setOpen] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Handle file selection
@@ -48,17 +50,57 @@ export function BillCapture() {
     }
     setSelectedFile(null);
     setPreviewUrl(null);
+    setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  // Handle continue (placeholder for OCR processing in next story)
-  const handleContinue = () => {
-    if (selectedFile) {
-      // TODO: This will be implemented in Story 1.2 - OCR Data Extraction
-      console.log("Continue with OCR processing", selectedFile);
-      alert("OCR processing will be implemented in Story 1.2");
+  // Handle continue - Process OCR
+  const handleContinue = async () => {
+    if (!selectedFile) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      // Create form data
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      // Call OCR API
+      const response = await fetch("/api/ocr", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to process receipt");
+      }
+
+      // TODO: Story 1.3 will implement the edit form
+      // For now, show the extracted data in an alert
+      const { amount, currency, dueDate, vendor, confidence } = result.data;
+      const confidenceInfo = `Confidence: Amount=${(confidence.amount * 100).toFixed(0)}%, Vendor=${(confidence.vendor * 100).toFixed(0)}%`;
+
+      alert(
+        `OCR Processing Complete!\n\n` +
+        `Vendor: ${vendor || "Not detected"}\n` +
+        `Amount: ${amount ? `${currency} ${amount}` : "Not detected"}\n` +
+        `Due Date: ${dueDate || "Not detected"}\n\n` +
+        `${confidenceInfo}\n\n` +
+        `Story 1.3 will add an editable form for these values.`
+      );
+
+      console.log("OCR Result:", result);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to process receipt";
+      setError(errorMessage);
+      console.error("OCR error:", err);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -106,10 +148,15 @@ export function BillCapture() {
                   capture="environment"
                   className="hidden"
                   onChange={handleFileChange}
+                  disabled={isProcessing}
                 />
                 <label
                   htmlFor="billImage"
-                  className="block rounded-xl border border-dashed border-gray-300 py-8 text-sm text-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-colors"
+                  className={`block rounded-xl border border-dashed border-gray-300 py-8 text-sm text-center transition-colors ${
+                    isProcessing
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer hover:border-indigo-400 hover:bg-gray-50"
+                  }`}
                 >
                   <div className="flex flex-col items-center gap-2">
                     <svg
@@ -143,12 +190,20 @@ export function BillCapture() {
             {/* Image Preview */}
             {previewUrl && (
               <div className="space-y-3">
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <div className="rounded-xl border border-gray-200 overflow-hidden relative">
                   <img
                     src={previewUrl}
                     alt="Bill preview"
                     className="w-full h-auto"
                   />
+                  {isProcessing && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="bg-white rounded-xl p-4 flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-sm font-medium">Processing receipt...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {selectedFile && (
@@ -158,12 +213,25 @@ export function BillCapture() {
                   </p>
                 )}
 
+                {/* Error Message */}
+                {error && (
+                  <div className="rounded-xl bg-red-50 border border-red-200 p-3">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2">
-                  <Button variant="outline" onClick={handleRetake}>
+                  <Button
+                    variant="outline"
+                    onClick={handleRetake}
+                    disabled={isProcessing}
+                  >
                     Retake
                   </Button>
-                  <Button onClick={handleContinue}>Continue</Button>
+                  <Button onClick={handleContinue} disabled={isProcessing}>
+                    {isProcessing ? "Processing..." : "Continue"}
+                  </Button>
                 </div>
               </div>
             )}
