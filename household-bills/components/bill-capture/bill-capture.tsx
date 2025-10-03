@@ -10,13 +10,66 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 
+interface OcrData {
+  amount: number | null;
+  currency: string;
+  dueDate: string | null;
+  vendor: string | null;
+  confidence: {
+    amount: number;
+    dueDate: number;
+    vendor: number;
+  };
+  imagePath: string;
+}
+
+interface FormData {
+  vendor: string;
+  amount: string;
+  dueDate: string;
+  billType: string;
+  assigneeId: string;
+}
+
+// Mock household members - in real app, fetch from API
+const HOUSEHOLD_MEMBERS = [
+  { id: "user-1", name: "Art" },
+  { id: "user-2", name: "Yam" },
+  { id: "user-3", name: "Ploy" },
+];
+
+const BILL_TYPES = [
+  { value: "ELECTRIC", label: "⚡ Electric", icon: "⚡" },
+  { value: "WATER", label: "💧 Water", icon: "💧" },
+  { value: "INTERNET", label: "🌐 Internet", icon: "🌐" },
+  { value: "CAR", label: "🚗 Car", icon: "🚗" },
+  { value: "HOME", label: "🏠 Home", icon: "🏠" },
+  { value: "OTHER", label: "📄 Other", icon: "📄" },
+];
+
+type ViewState = "capture" | "preview" | "edit";
+
 export function BillCapture() {
   const [open, setOpen] = React.useState(false);
+  const [viewState, setViewState] = React.useState<ViewState>("capture");
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [ocrData, setOcrData] = React.useState<OcrData | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Form state
+  const [formData, setFormData] = React.useState<FormData>({
+    vendor: "",
+    amount: "",
+    dueDate: "",
+    billType: "OTHER",
+    assigneeId: HOUSEHOLD_MEMBERS[0].id,
+  });
+
+  const [formErrors, setFormErrors] = React.useState<Partial<FormData>>({});
 
   // Handle file selection
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,6 +93,7 @@ export function BillCapture() {
       // Create preview URL
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
+      setViewState("preview");
     }
   };
 
@@ -50,7 +104,9 @@ export function BillCapture() {
     }
     setSelectedFile(null);
     setPreviewUrl(null);
+    setOcrData(null);
     setError(null);
+    setViewState("capture");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -65,13 +121,13 @@ export function BillCapture() {
 
     try {
       // Create form data
-      const formData = new FormData();
-      formData.append("file", selectedFile);
+      const formDataObj = new FormData();
+      formDataObj.append("file", selectedFile);
 
       // Call OCR API
       const response = await fetch("/api/ocr", {
         method: "POST",
-        body: formData,
+        body: formDataObj,
       });
 
       const result = await response.json();
@@ -80,23 +136,23 @@ export function BillCapture() {
         throw new Error(result.error || "Failed to process receipt");
       }
 
-      // TODO: Story 1.3 will implement the edit form
-      // For now, show the extracted data in an alert
-      const { amount, currency, dueDate, vendor, confidence } = result.data;
-      const confidenceInfo = `Confidence: Amount=${(confidence.amount * 100).toFixed(0)}%, Vendor=${(confidence.vendor * 100).toFixed(0)}%`;
+      // Store OCR data
+      setOcrData(result.data);
 
-      alert(
-        `OCR Processing Complete!\n\n` +
-        `Vendor: ${vendor || "Not detected"}\n` +
-        `Amount: ${amount ? `${currency} ${amount}` : "Not detected"}\n` +
-        `Due Date: ${dueDate || "Not detected"}\n\n` +
-        `${confidenceInfo}\n\n` +
-        `Story 1.3 will add an editable form for these values.`
-      );
+      // Pre-populate form with OCR results
+      setFormData({
+        vendor: result.data.vendor || "",
+        amount: result.data.amount?.toString() || "",
+        dueDate: result.data.dueDate || "",
+        billType: detectBillType(result.data.vendor || ""),
+        assigneeId: formData.assigneeId, // Keep selected assignee
+      });
 
-      console.log("OCR Result:", result);
+      // Switch to edit view
+      setViewState("edit");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to process receipt";
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to process receipt";
       setError(errorMessage);
       console.error("OCR error:", err);
     } finally {
@@ -104,7 +160,106 @@ export function BillCapture() {
     }
   };
 
-  // Cleanup preview URL on unmount or when file changes
+  // Detect bill type from vendor name
+  const detectBillType = (vendor: string): string => {
+    const lowerVendor = vendor.toLowerCase();
+    if (/mea|electric|electricity|power/i.test(lowerVendor)) return "ELECTRIC";
+    if (/water|waterworks/i.test(lowerVendor)) return "WATER";
+    if (/internet|wifi|broadband/i.test(lowerVendor)) return "INTERNET";
+    if (/car|auto|insurance/i.test(lowerVendor)) return "CAR";
+    if (/condo|home|house|maintenance/i.test(lowerVendor)) return "HOME";
+    return "OTHER";
+  };
+
+  // Validate form
+  const validateForm = (): boolean => {
+    const errors: Partial<FormData> = {};
+
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      errors.amount = "Amount is required and must be greater than 0";
+    }
+
+    if (!formData.dueDate) {
+      errors.dueDate = "Due date is required";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Handle form submit
+  const handleSaveBill = async () => {
+    if (!validateForm()) return;
+    if (!ocrData) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/bills", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          vendor: formData.vendor,
+          amount: parseFloat(formData.amount),
+          currency: ocrData.currency,
+          dueDate: formData.dueDate,
+          billType: formData.billType,
+          imagePath: ocrData.imagePath,
+          assigneeId: formData.assigneeId,
+          ocrData: {
+            confidence: ocrData.confidence,
+            rawResponse: {},
+          },
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to save bill");
+      }
+
+      // Success - close modal and reset
+      alert("Bill saved successfully!");
+      handleClose();
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to save bill";
+      setError(errorMessage);
+      console.error("Save error:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle cancel
+  const handleClose = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setOcrData(null);
+    setError(null);
+    setViewState("capture");
+    setFormData({
+      vendor: "",
+      amount: "",
+      dueDate: "",
+      billType: "OTHER",
+      assigneeId: HOUSEHOLD_MEMBERS[0].id,
+    });
+    setFormErrors({});
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setOpen(false);
+  };
+
+  // Cleanup preview URL on unmount
   React.useEffect(() => {
     return () => {
       if (previewUrl) {
@@ -113,32 +268,24 @@ export function BillCapture() {
     };
   }, [previewUrl]);
 
-  // Reset state when dialog closes
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
-    if (!isOpen) {
-      handleRetake();
-    }
-  };
-
   return (
     <>
       <Button onClick={() => setOpen(true)}>Add Bill</Button>
 
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md">
+      <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Bill</DialogTitle>
             <DialogClose asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={handleClose}>
                 Close
               </Button>
             </DialogClose>
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* File Upload / Camera Capture */}
-            {!previewUrl && (
+            {/* Capture View */}
+            {viewState === "capture" && (
               <div>
                 <input
                   ref={fileInputRef}
@@ -148,15 +295,10 @@ export function BillCapture() {
                   capture="environment"
                   className="hidden"
                   onChange={handleFileChange}
-                  disabled={isProcessing}
                 />
                 <label
                   htmlFor="billImage"
-                  className={`block rounded-xl border border-dashed border-gray-300 py-8 text-sm text-center transition-colors ${
-                    isProcessing
-                      ? "cursor-not-allowed opacity-50"
-                      : "cursor-pointer hover:border-indigo-400 hover:bg-gray-50"
-                  }`}
+                  className="block rounded-xl border border-dashed border-gray-300 py-8 text-sm text-center cursor-pointer hover:border-indigo-400 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex flex-col items-center gap-2">
                     <svg
@@ -187,8 +329,8 @@ export function BillCapture() {
               </div>
             )}
 
-            {/* Image Preview */}
-            {previewUrl && (
+            {/* Preview View */}
+            {viewState === "preview" && previewUrl && (
               <div className="space-y-3">
                 <div className="rounded-xl border border-gray-200 overflow-hidden relative">
                   <img
@@ -200,7 +342,9 @@ export function BillCapture() {
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <div className="bg-white rounded-xl p-4 flex flex-col items-center gap-2">
                         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-sm font-medium">Processing receipt...</p>
+                        <p className="text-sm font-medium">
+                          Processing receipt...
+                        </p>
                       </div>
                     </div>
                   )}
@@ -213,14 +357,12 @@ export function BillCapture() {
                   </p>
                 )}
 
-                {/* Error Message */}
                 {error && (
                   <div className="rounded-xl bg-red-50 border border-red-200 p-3">
                     <p className="text-sm text-red-600">{error}</p>
                   </div>
                 )}
 
-                {/* Action Buttons */}
                 <div className="flex items-center justify-end gap-2">
                   <Button
                     variant="outline"
@@ -231,6 +373,142 @@ export function BillCapture() {
                   </Button>
                   <Button onClick={handleContinue} disabled={isProcessing}>
                     {isProcessing ? "Processing..." : "Continue"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Edit View */}
+            {viewState === "edit" && (
+              <div className="space-y-4">
+                {/* Vendor Field */}
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">
+                    Vendor
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.vendor}
+                    onChange={(e) =>
+                      setFormData({ ...formData, vendor: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    placeholder="MEA / Waterworks"
+                  />
+                </div>
+
+                {/* Amount and Due Date */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">
+                      Amount (THB) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.amount}
+                      onChange={(e) =>
+                        setFormData({ ...formData, amount: e.target.value })
+                      }
+                      className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                        formErrors.amount ? "border-red-500" : "border-gray-300"
+                      }`}
+                      placeholder="0.00"
+                    />
+                    {formErrors.amount && (
+                      <p className="text-xs text-red-500 mt-1">
+                        {formErrors.amount}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">
+                      Due Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.dueDate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, dueDate: e.target.value })
+                      }
+                      className={`w-full rounded-xl border px-3 py-2 text-sm ${
+                        formErrors.dueDate
+                          ? "border-red-500"
+                          : "border-gray-300"
+                      }`}
+                    />
+                    {formErrors.dueDate && (
+                      <p className="text-xs text-red-500 mt-1">
+                        {formErrors.dueDate}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bill Type */}
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">
+                    Bill Type
+                  </label>
+                  <select
+                    value={formData.billType}
+                    onChange={(e) =>
+                      setFormData({ ...formData, billType: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    {BILL_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Assignee */}
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">
+                    Assignee *
+                  </label>
+                  <select
+                    value={formData.assigneeId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, assigneeId: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    {HOUSEHOLD_MEMBERS.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* OCR Confidence Info */}
+                {ocrData && (
+                  <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
+                    <p className="text-xs text-blue-600">
+                      OCR Confidence: Amount {(ocrData.confidence.amount * 100).toFixed(0)}%
+                      {ocrData.confidence.vendor > 0 && `, Vendor ${(ocrData.confidence.vendor * 100).toFixed(0)}%`}
+                    </p>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {error && (
+                  <div className="rounded-xl bg-red-50 border border-red-200 p-3">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={handleClose} disabled={isSaving}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveBill} disabled={isSaving}>
+                    {isSaving ? "Saving..." : "Save & Assign"}
                   </Button>
                 </div>
               </div>
