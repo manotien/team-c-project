@@ -1,7 +1,7 @@
 # Household Tasks & Bills Fullstack Architecture Document
 
-**Project Name:** Household Tasks & Bills — Shared Tasks + Receipt Scanner + LINE Notifications
-**Version:** 2.0
+**Project Name:** Household Tasks & Bills — Receipt Scanner + LINE Notifications
+**Version:** 3.0
 **Date:** 2025-10-03
 **Author:** Winston (Architect)
 
@@ -9,7 +9,7 @@
 
 ## Introduction
 
-This document outlines the complete fullstack architecture for **Household Tasks & Bills**, a streamlined application for capturing bills/receipts, converting them into tasks, and notifying members via LINE. This architecture is optimized for rapid hackathon development (4hr demo, 48hr MVP) while maintaining a clean, scalable foundation.
+This document outlines the complete fullstack architecture for **Household Tasks & Bills**, a streamlined single-user application for capturing bills/receipts, converting them into tasks, and receiving notifications via LINE. This architecture is optimized for rapid hackathon development (4hr demo, 48hr MVP) while maintaining a clean, scalable foundation.
 
 ### Starter Template or Existing Project
 
@@ -24,24 +24,26 @@ This document outlines the complete fullstack architecture for **Household Tasks
 - **Local development only** - no deployment needed for hackathon demo
 
 **Rationale:**
-- **Simplified data model:** No groups or escalation reduces complexity by ~40%
+- **Simplified data model:** Single-user architecture, no groups/members/assignments
 - **Monolithic Next.js:** Faster than separate frontend/backend for hackathon timeline
 - **PostgreSQL + Prisma:** Type safety prevents bugs, migrations are straightforward
 - **LINE LIFF:** Native LINE integration for Thai users, seamless auth flow
 - **Local demo:** Runs on localhost, no deployment overhead for hackathon
+- **Google Cloud Document AI:** High accuracy OCR (95%+) for Thai receipts
 
 ### Architecture Principles for Hackathon MVP
 
-1. **Simplicity First:** Flat member structure, no hierarchies or complex workflows
+1. **Simplicity First:** Single-user model, automatic task creation, no assignment workflow
 2. **Type Safety:** Shared TypeScript types between frontend/backend prevent runtime errors
 3. **Rapid Iteration:** Hot reload, automatic API routes, zero config
 4. **Mobile-First:** Optimized for LINE LIFF browser on mobile devices
-5. **Offline-Capable OCR:** Tesseract.js runs client-side, no API costs or delays
+5. **Cloud OCR:** Google Document AI for reliable receipt parsing
 
 ### Change Log
 
 | Date | Version | Description | Author |
 |------|---------|-------------|--------|
+| 2025-10-03 | 3.0 | Single-user architecture - removed assignments, members, groups. Updated to Google Document AI. Removed Docker setup. | Winston (Architect) |
 | 2025-10-03 | 2.0 | Simplified architecture - removed groups and escalation | Winston (Architect) |
 | 2025-10-03 | 1.0 | Initial architecture document | Winston (Architect) |
 
@@ -51,7 +53,7 @@ This document outlines the complete fullstack architecture for **Household Tasks
 
 ### Technical Summary
 
-This application follows a **modern fullstack architecture** using Next.js 14+ with the App Router pattern, providing server-side rendering, React Server Components, and API routes in a unified local development environment. The frontend uses React Server Components by default for optimal performance, with client components for interactive features like OCR processing and camera access. The backend uses Next.js Route Handlers with Prisma ORM for type-safe PostgreSQL operations. Key integration points include LINE LIFF SDK for authentication and in-app browser experience, LINE Notify API for notifications, Tesseract.js for client-side OCR, and local file storage for images. The simplified data model features a flat member structure where any user can create bills, assign tasks to themselves or other members, and view shared summaries—no group management or escalation logic needed. This architecture achieves rapid hackathon development with everything running locally on localhost.
+This application follows a **modern fullstack architecture** using Next.js 14+ with the App Router pattern, providing server-side rendering, React Server Components, and API routes in a unified local development environment. The frontend uses React Server Components by default for optimal performance, with client components for interactive features like camera access and file uploads. The backend uses Next.js Route Handlers with Prisma ORM for type-safe PostgreSQL operations. Key integration points include LINE LIFF SDK for authentication and in-app browser experience, LINE Messaging API for push notifications, Google Cloud Document AI for high-accuracy receipt OCR, Bull queue with Redis for scheduled notifications, and local file storage for images. The simplified data model features a **single-user architecture** where each user manages only their own bills and tasks—when a user creates a bill, a task is automatically created for them. No assignments, no members, no groups. This architecture achieves rapid hackathon development with everything running locally on localhost.
 
 ### Platform and Infrastructure Choice
 
@@ -545,29 +547,27 @@ export function ReceiptScanner({ onScanComplete }: { onScanComplete: (data: any)
 
 ## Data Models
 
-### Simplified Architecture: No Groups
+### Simplified Architecture: Single User
 
-**Key Decision:** The application uses a **flat member structure** where:
-- All users are equal members (no owners, no hierarchies)
-- Any member can see all bills and tasks
-- Members can assign tasks to themselves or others
-- Monthly summaries show combined totals plus per-member breakdowns
+**Key Decision:** The application uses a **single-user architecture** where:
+- Each user manages their own bills and tasks independently
+- No concept of groups, members, or assignments
+- User creates bill → automatically creates task for themselves
+- Monthly summaries show user's own payment totals
 
-**Rationale:** This eliminates 2 database tables (groups, group_members), simplifies permissions logic, and accelerates development by ~40% while still meeting all PRD requirements.
+**Rationale:** This is the simplest possible data model for hackathon MVP, eliminating group management entirely and focusing on core bill tracking functionality.
 
 ---
 
 ### User
 
-**Purpose:** Represents a member who can create bills, be assigned tasks, and receive notifications.
+**Purpose:** Represents a user who manages their own bills and tasks.
 
 **Key Attributes:**
 - `id`: String (UUID) - Unique identifier
-- `lineUserId`: String (unique, nullable) - LINE user ID from LIFF authentication
-- `email`: String (nullable) - Email address for fallback notifications
-- `name`: String - Display name (from LINE profile or user input)
-- `avatarUrl`: String (nullable) - Profile image URL (from LINE or custom upload)
-- `settings`: JSON - User preferences (notification channels, timezone)
+- `lineUserId`: String (unique) - LINE user ID from LINE login
+- `name`: String - Display name from LINE profile
+- `avatarUrl`: String (nullable) - Profile image URL from LINE
 - `createdAt`: DateTime - Account creation timestamp
 - `updatedAt`: DateTime - Last update timestamp
 
@@ -576,29 +576,19 @@ export function ReceiptScanner({ onScanComplete }: { onScanComplete: (data: any)
 ```typescript
 interface User {
   id: string;
-  lineUserId: string | null;
-  email: string | null;
+  lineUserId: string;
   name: string;
   avatarUrl: string | null;
-  settings: UserSettings;
   createdAt: Date;
   updatedAt: Date;
-}
-
-interface UserSettings {
-  timezone?: string;
-  notificationChannels: ('line' | 'email' | 'push' | 'in_app')[];
-  defaultAssignToSelf?: boolean;
 }
 ```
 
 #### Relationships
 
 - One user can create many bills
-- One user can be assigned many tasks
-- One user can create many tasks
+- One user has many tasks (auto-created from bills)
 - One user can receive many notifications
-- One user can perform many history actions
 
 ---
 
@@ -661,43 +651,41 @@ interface RecurrenceSettings {
 
 #### Relationships
 
-- Belongs to one User (creator)
-- Has one associated Task
+- Belongs to one User
+- Has one associated Task (auto-created)
 
 ---
 
 ### Task
 
-**Purpose:** Represents a payment task linked to a bill, assigned to a member.
+**Purpose:** Represents a payment task automatically created from a bill.
 
 **Key Attributes:**
 - `id`: String (UUID) - Unique identifier
 - `billId`: String - Foreign key to Bill (one-to-one)
-- `title`: String - Task title/description (auto-generated from bill)
-- `assigneeId`: String - User assigned to pay this bill
-- `status`: Enum - 'OPEN' | 'PAID' | 'OVERDUE'
+- `userId`: String - Owner of this task
+- `title`: String - Task title (auto-generated from bill: "Pay {vendor} bill")
+- `status`: Enum - 'UNPAID' | 'PAID'
 - `dueDate`: DateTime - Copied from bill due date
 - `paidAt`: DateTime (nullable) - When marked as paid
 - `paymentProofUrl`: String (nullable) - URL to payment slip image
-- `createdById`: String - User who created the task
 - `createdAt`: DateTime - Creation timestamp
 - `updatedAt`: DateTime - Last update timestamp
 
 #### TypeScript Interface
 
 ```typescript
-type TaskStatus = 'OPEN' | 'PAID' | 'OVERDUE';
+type TaskStatus = 'UNPAID' | 'PAID';
 
 interface Task {
   id: string;
   billId: string;
+  userId: string;
   title: string;
-  assigneeId: string;
   status: TaskStatus;
   dueDate: Date;
   paidAt: Date | null;
   paymentProofUrl: string | null;
-  createdById: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -706,100 +694,54 @@ interface Task {
 #### Relationships
 
 - Belongs to one Bill
-- Assigned to one User (assignee)
-- Created by one User (creator)
-- Has many History entries
+- Belongs to one User
 - Has many Notifications
-
----
-
-### History
-
-**Purpose:** Audit log of all actions taken on tasks (creation, assignment, status changes).
-
-**Key Attributes:**
-- `id`: String (UUID) - Unique identifier
-- `taskId`: String - Foreign key to Task
-- `action`: Enum - 'CREATED' | 'ASSIGNED' | 'REASSIGNED' | 'PAID'
-- `performedById`: String - User who performed the action
-- `details`: JSON - Additional context (e.g., previous assignee on reassignment)
-- `createdAt`: DateTime - When action occurred
-
-#### TypeScript Interface
-
-```typescript
-type HistoryAction = 'CREATED' | 'ASSIGNED' | 'REASSIGNED' | 'PAID';
-
-interface History {
-  id: string;
-  taskId: string;
-  action: HistoryAction;
-  performedById: string;
-  details: HistoryDetails;
-  createdAt: Date;
-}
-
-interface HistoryDetails {
-  previousAssignee?: string;  // For REASSIGNED
-  amount?: number;             // For PAID
-  note?: string;               // Optional note
-}
-```
-
-#### Relationships
-
-- Belongs to one Task
-- Performed by one User
 
 ---
 
 ### Notification
 
-**Purpose:** Tracks notification delivery status across all channels.
+**Purpose:** Tracks LINE notification delivery for bill creation and due date reminders.
 
 **Key Attributes:**
 - `id`: String (UUID) - Unique identifier
 - `userId`: String - Recipient user ID
-- `taskId`: String (nullable) - Related task ID (nullable for system notifications)
-- `channel`: Enum - 'LINE' | 'EMAIL' | 'PUSH' | 'IN_APP'
+- `taskId`: String - Related task ID
+- `type`: Enum - 'BILL_CREATED' | 'DUE_SOON' | 'DUE_TODAY'
 - `status`: Enum - 'PENDING' | 'SENT' | 'FAILED' | 'READ'
 - `message`: String - Notification content
-- `sentAt`: DateTime (nullable) - When sent
-- `readAt`: DateTime (nullable) - When read (for in-app notifications)
-- `metadata`: JSON - Channel-specific data (LINE message ID, email ID, etc.)
+- `sentAt`: DateTime (nullable) - When sent via LINE
+- `readAt`: DateTime (nullable) - When read in app
+- `metadata`: JSON - LINE message ID and delivery details
 - `createdAt`: DateTime - Creation timestamp
 
 #### TypeScript Interface
 
 ```typescript
-type NotificationChannel = 'LINE' | 'EMAIL' | 'PUSH' | 'IN_APP';
+type NotificationType = 'BILL_CREATED' | 'DUE_SOON' | 'DUE_TODAY';
 type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'READ';
 
 interface Notification {
   id: string;
   userId: string;
-  taskId: string | null;
-  channel: NotificationChannel;
+  taskId: string;
+  type: NotificationType;
   status: NotificationStatus;
   message: string;
   sentAt: Date | null;
   readAt: Date | null;
-  metadata: NotificationMetadata;
+  metadata: {
+    lineMessageId?: string;
+    error?: string;
+  };
   createdAt: Date;
-}
-
-interface NotificationMetadata {
-  lineMessageId?: string;
-  emailId?: string;
-  fcmToken?: string;
-  error?: string;  // If status is FAILED
 }
 ```
 
 #### Relationships
 
 - Belongs to one User
-- Optionally belongs to one Task
+- Belongs to one Task
 
 ---
 
@@ -812,11 +754,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Users table
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  line_user_id VARCHAR(255) UNIQUE,
-  email VARCHAR(255),
+  line_user_id VARCHAR(255) UNIQUE NOT NULL,
   name VARCHAR(255) NOT NULL,
   avatar_url TEXT,
-  settings JSONB DEFAULT '{"notificationChannels": ["line", "in_app"], "timezone": "Asia/Bangkok"}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -824,6 +764,7 @@ CREATE TABLE users (
 -- Bills table
 CREATE TABLE bills (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   vendor VARCHAR(255) NOT NULL,
   amount DECIMAL(10, 2) NOT NULL,
   currency VARCHAR(3) DEFAULT 'THB',
@@ -832,43 +773,31 @@ CREATE TABLE bills (
   raw_image_url TEXT NOT NULL,
   ocr_data JSONB DEFAULT '{}',
   recurrence JSONB,
-  created_by_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tasks table
+-- Tasks table (auto-created from bills)
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   bill_id UUID NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title VARCHAR(500) NOT NULL,
-  assignee_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  status VARCHAR(50) NOT NULL CHECK (status IN ('OPEN', 'PAID', 'OVERDUE')) DEFAULT 'OPEN',
+  status VARCHAR(50) NOT NULL CHECK (status IN ('UNPAID', 'PAID')) DEFAULT 'UNPAID',
   due_date TIMESTAMP WITH TIME ZONE NOT NULL,
   paid_at TIMESTAMP WITH TIME ZONE,
   payment_proof_url TEXT,
-  created_by_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(bill_id)  -- One task per bill
-);
-
--- History table
-CREATE TABLE history (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  action VARCHAR(50) NOT NULL CHECK (action IN ('CREATED', 'ASSIGNED', 'REASSIGNED', 'PAID')),
-  performed_by_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  details JSONB DEFAULT '{}',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Notifications table
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
-  channel VARCHAR(50) NOT NULL CHECK (channel IN ('LINE', 'EMAIL', 'PUSH', 'IN_APP')),
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL CHECK (type IN ('BILL_CREATED', 'DUE_SOON', 'DUE_TODAY')),
   status VARCHAR(50) NOT NULL CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'READ')) DEFAULT 'PENDING',
   message TEXT NOT NULL,
   sent_at TIMESTAMP WITH TIME ZONE,
@@ -879,19 +808,18 @@ CREATE TABLE notifications (
 
 -- Indexes for performance
 CREATE INDEX idx_users_line_user_id ON users(line_user_id);
-CREATE INDEX idx_bills_created_by ON bills(created_by_id);
+CREATE INDEX idx_bills_user_id ON bills(user_id);
 CREATE INDEX idx_bills_due_date ON bills(due_date);
-CREATE INDEX idx_tasks_assignee_id ON tasks(assignee_id);
+CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX idx_tasks_bill_id ON tasks(bill_id);
-CREATE INDEX idx_history_task_id ON history(task_id);
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_status ON notifications(status);
 CREATE INDEX idx_notifications_task_id ON notifications(task_id);
+CREATE INDEX idx_notifications_status ON notifications(status);
 
 -- Composite indexes for common queries
-CREATE INDEX idx_tasks_assignee_status ON tasks(assignee_id, status);
+CREATE INDEX idx_tasks_user_status ON tasks(user_id, status);
 CREATE INDEX idx_tasks_status_due_date ON tasks(status, due_date);
 
 -- Updated_at triggers
@@ -929,110 +857,87 @@ datasource db {
 
 model User {
   id          String   @id @default(uuid())
-  lineUserId  String?  @unique @map("line_user_id")
-  email       String?
+  lineUserId  String   @unique @map("line_user_id")
   name        String
   avatarUrl   String?  @map("avatar_url")
-  settings    Json     @default("{\"notificationChannels\": [\"line\", \"in_app\"], \"timezone\": \"Asia/Bangkok\"}")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  createdBills      Bill[]         @relation("BillCreator")
-  assignedTasks     Task[]         @relation("TaskAssignee")
-  createdTasks      Task[]         @relation("TaskCreator")
-  performedActions  History[]      @relation("HistoryPerformer")
-  notifications     Notification[]
+  bills         Bill[]
+  tasks         Task[]
+  notifications Notification[]
 
   @@map("users")
 }
 
 model Bill {
-  id           String   @id @default(uuid())
-  vendor       String
-  amount       Decimal  @db.Decimal(10, 2)
-  currency     String   @default("THB")
-  dueDate      DateTime @map("due_date")
-  billType     BillType @map("bill_type")
-  rawImageUrl  String   @map("raw_image_url")
-  ocrData      Json     @default("{}") @map("ocr_data")
-  recurrence   Json?
-  createdById  String   @map("created_by_id")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  vendor      String
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("THB")
+  dueDate     DateTime @map("due_date")
+  billType    BillType @map("bill_type")
+  rawImageUrl String   @map("raw_image_url")
+  ocrData     Json     @default("{}") @map("ocr_data")
+  recurrence  Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  createdBy User  @relation("BillCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  task      Task?
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task?
 
-  @@index([createdById])
+  @@index([userId])
   @@index([dueDate])
   @@map("bills")
 }
 
 model Task {
-  id               String      @id @default(uuid())
-  billId           String      @unique @map("bill_id")
-  title            String
-  assigneeId       String      @map("assignee_id")
-  status           TaskStatus  @default(OPEN)
-  dueDate          DateTime    @map("due_date")
-  paidAt           DateTime?   @map("paid_at")
-  paymentProofUrl  String?     @map("payment_proof_url")
-  createdById      String      @map("created_by_id")
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
+  id              String     @id @default(uuid())
+  billId          String     @unique @map("bill_id")
+  userId          String     @map("user_id")
+  title           String
+  status          TaskStatus @default(UNPAID)
+  dueDate         DateTime   @map("due_date")
+  paidAt          DateTime?  @map("paid_at")
+  paymentProofUrl String?    @map("payment_proof_url")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
   // Relationships
-  bill         Bill           @relation(fields: [billId], references: [id], onDelete: Cascade)
-  assignee     User           @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
-  createdBy    User           @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  history      History[]
+  bill          Bill           @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   notifications Notification[]
 
-  @@index([assigneeId])
+  @@index([userId])
   @@index([status])
   @@index([dueDate])
-  @@index([assigneeId, status])
+  @@index([userId, status])
   @@index([status, dueDate])
   @@map("tasks")
 }
 
-model History {
-  id            String        @id @default(uuid())
-  taskId        String        @map("task_id")
-  action        HistoryAction
-  performedById String        @map("performed_by_id")
-  details       Json          @default("{}")
-  createdAt     DateTime      @default(now()) @map("created_at")
-
-  // Relationships
-  task        Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  performedBy User @relation("HistoryPerformer", fields: [performedById], references: [id], onDelete: Cascade)
-
-  @@index([taskId])
-  @@map("history")
-}
-
 model Notification {
-  id        String              @id @default(uuid())
-  userId    String              @map("user_id")
-  taskId    String?             @map("task_id")
-  channel   NotificationChannel
-  status    NotificationStatus  @default(PENDING)
+  id        String             @id @default(uuid())
+  userId    String             @map("user_id")
+  taskId    String             @map("task_id")
+  type      NotificationType
+  status    NotificationStatus @default(PENDING)
   message   String
-  sentAt    DateTime?           @map("sent_at")
-  readAt    DateTime?           @map("read_at")
-  metadata  Json                @default("{}")
-  createdAt DateTime            @default(now()) @map("created_at")
+  sentAt    DateTime?          @map("sent_at")
+  readAt    DateTime?          @map("read_at")
+  metadata  Json               @default("{}")
+  createdAt DateTime           @default(now()) @map("created_at")
 
   // Relationships
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([status])
   @@index([taskId])
+  @@index([status])
   @@map("notifications")
 }
 
@@ -1047,23 +952,14 @@ enum BillType {
 }
 
 enum TaskStatus {
-  OPEN
-  PAID
-  OVERDUE
-}
-
-enum HistoryAction {
-  CREATED
-  ASSIGNED
-  REASSIGNED
+  UNPAID
   PAID
 }
 
-enum NotificationChannel {
-  LINE
-  EMAIL
-  PUSH
-  IN_APP
+enum NotificationType {
+  BILL_CREATED
+  DUE_SOON
+  DUE_TODAY
 }
 
 enum NotificationStatus {
@@ -1582,12 +1478,12 @@ household-bills/
 ├── .env.example                      # Environment template
 ├── .eslintrc.json                    # ESLint config
 ├── .prettierrc                       # Prettier config
-├── docker-compose.yml                # PostgreSQL + Redis containers
 ├── next.config.js                    # Next.js config
 ├── tailwind.config.ts                # Tailwind config
 ├── tsconfig.json                     # TypeScript config
 ├── package.json                      # Dependencies
 ├── pnpm-lock.yaml                    # Lock file
+├── gcp-credentials.json              # Google Cloud service account key (gitignored)
 └── README.md                         # Project documentation
 ```
 
@@ -1620,16 +1516,17 @@ cd household-bills
 # Install dependencies
 pnpm install
 
-# Start Docker containers (PostgreSQL + Redis)
-docker-compose up -d
+# Install and start PostgreSQL and Redis (see Local Service Installation section above)
+# Make sure both services are running
 
 # Setup environment variables
 cp .env.example .env.local
 # Edit .env.local with your values:
-# - DATABASE_URL (local PostgreSQL)
+# - DATABASE_URL=postgresql://postgres:postgres@localhost:5432/household_bills
 # - NEXTAUTH_SECRET (generate with: openssl rand -base64 32)
 # - LINE_CLIENT_ID, LINE_CLIENT_SECRET, LINE_CHANNEL_ACCESS_TOKEN
-# - REDIS_HOST, REDIS_PORT
+# - REDIS_HOST=localhost, REDIS_PORT=6379
+# - GCP_PROJECT_ID, GCP_PROCESSOR_ID (Google Cloud Document AI)
 
 # Setup database
 pnpm prisma generate
@@ -1671,10 +1568,11 @@ pnpm prisma db seed    # Re-seed database
 pnpm queue:ui          # Open Bull Board (queue monitoring UI)
 pnpm queue:clean       # Clean completed/failed jobs
 
-# Docker
-docker-compose up -d   # Start containers
-docker-compose down    # Stop containers
-docker-compose logs -f # View logs
+# Local services management
+brew services start postgresql@15  # Start PostgreSQL (macOS)
+brew services start redis          # Start Redis (macOS)
+brew services stop postgresql@15   # Stop PostgreSQL (macOS)
+brew services stop redis           # Stop Redis (macOS)
 
 # Build
 pnpm build             # Production build
@@ -1725,45 +1623,42 @@ NEXT_PUBLIC_ENABLE_OCR_DEBUG="true"
 NEXT_PUBLIC_DEMO_MODE="true"
 ```
 
-#### Docker Compose Setup
+#### Local Service Installation
 
-```yaml
-# docker-compose.yml
-version: '3.8'
+**PostgreSQL Installation:**
 
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: household-bills-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: household_bills
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - household-bills-network
+```bash
+# macOS (Homebrew)
+brew install postgresql@15
+brew services start postgresql@15
 
-  redis:
-    image: redis:7-alpine
-    container_name: household-bills-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - household-bills-network
-    command: redis-server --appendonly yes
+# Create database
+createdb household_bills
 
-volumes:
-  postgres_data:
-  redis_data:
+# Ubuntu/Debian
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo -u postgres createdb household_bills
 
-networks:
-  household-bills-network:
-    driver: bridge
+# Verify installation
+psql --version
+```
+
+**Redis Installation:**
+
+```bash
+# macOS (Homebrew)
+brew install redis
+brew services start redis
+
+# Ubuntu/Debian
+sudo apt update
+sudo apt install redis-server
+sudo systemctl start redis-server
+
+# Verify installation
+redis-cli ping  # Should return "PONG"
 ```
 
 ---
@@ -2269,10 +2164,10 @@ This architecture document provides the foundation for rapid hackathon developme
 
 ### Phase 1: 4-Hour MVP (Local Demo)
 1. Initialize Next.js project with TypeScript + Tailwind
-2. Setup Docker Compose (PostgreSQL + Redis) + Prisma (simplified schema)
-3. Implement bill upload flow with Tesseract.js OCR
-4. Create task assignment with in-app notifications
-5. Build basic dashboard (upcoming, overdue, my tasks)
+2. Install local PostgreSQL + Redis + Prisma (simplified single-user schema)
+3. Implement bill upload flow with Google Cloud Document AI OCR
+4. Create automatic task creation (no assignment needed)
+5. Build basic dashboard (upcoming, overdue tasks)
 
 ### Phase 2: 48-Hour Full MVP (Local Demo)
 6. Setup Bull queues + Redis for background jobs
@@ -2287,8 +2182,13 @@ This architecture document provides the foundation for rapid hackathon developme
 ### Quick Start Commands
 
 ```bash
-# 1. Start Docker containers (PostgreSQL + Redis)
-docker-compose up -d
+# 1. Install and start local services (PostgreSQL + Redis)
+brew install postgresql@15 redis  # macOS
+brew services start postgresql@15
+brew services start redis
+
+# Create database
+createdb household_bills
 
 # 2. Install dependencies
 pnpm install
@@ -2311,9 +2211,10 @@ pnpm dev:all
 - **Bull Queue setup:** Section "Background Job System"
 - **Prisma schema:** Section "Database Schema" → `/prisma/schema.prisma`
 - **API routes:** Section "API Specification"
-- **Docker setup:** Section "Environment Configuration" (PostgreSQL + Redis)
+- **Local services setup:** Section "Local Service Installation" (PostgreSQL + Redis)
 - **Queue workers:** `lib/queues/workers/` directory
 - **LINE Messaging API:** `lib/integrations/line-messaging.ts`
+- **Google Cloud Document AI:** Section "Google Cloud Document AI Integration"
 - **Database queries:** Use Prisma Client in `lib/services`
 - **UI components:** shadcn/ui + custom components in `components/`
 
