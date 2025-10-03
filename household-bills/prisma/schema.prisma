@@ -1,0 +1,124 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  lineUserId String   @unique @map("line_user_id")
+  name       String
+  avatarUrl  String?  @map("avatar_url")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  bills         Bill[]
+  tasks         Task[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Bill {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  vendor      String
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("THB")
+  dueDate     DateTime @map("due_date")
+  billType    BillType @map("bill_type")
+  rawImageUrl String   @map("raw_image_url")
+  ocrData     Json     @default("{}") @map("ocr_data")
+  recurrence  Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task?
+
+  @@index([userId])
+  @@index([dueDate])
+  @@map("bills")
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  billId          String     @unique @map("bill_id")
+  userId          String     @map("user_id")
+  title           String
+  status          TaskStatus @default(UNPAID)
+  dueDate         DateTime   @map("due_date")
+  paidAt          DateTime?  @map("paid_at")
+  paymentProofUrl String?    @map("payment_proof_url")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  // Relationships
+  bill          Bill           @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([userId, status])
+  @@index([status, dueDate])
+  @@map("tasks")
+}
+
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String             @map("user_id")
+  taskId    String             @map("task_id")
+  type      NotificationType
+  status    NotificationStatus @default(PENDING)
+  message   String
+  sentAt    DateTime?          @map("sent_at")
+  readAt    DateTime?          @map("read_at")
+  metadata  Json               @default("{}")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([status])
+  @@map("notifications")
+}
+
+// Enums
+enum BillType {
+  ELECTRIC
+  WATER
+  INTERNET
+  CAR
+  HOME
+  OTHER
+}
+
+enum TaskStatus {
+  UNPAID
+  PAID
+}
+
+enum NotificationType {
+  BILL_CREATED
+  DUE_SOON
+  DUE_TODAY
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
