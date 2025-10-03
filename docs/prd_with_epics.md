@@ -9,7 +9,7 @@
 
 ## 1. Objective
 
-Enable households or small teams to capture bills/receipts, convert them into tasks, assign members, and notify assignees via LINE or fallback channels. MVP enhanced with LINE login, recurring reminders, profile images, and bill icons.
+Enable households or small teams to capture bills/receipts, convert them into tasks, and notify user via LINE or fallback channels. MVP enhanced with LINE login, recurring reminders, profile images, and bill icons.
 
 ---
 
@@ -64,7 +64,7 @@ Enable households or small teams to capture bills/receipts, convert them into ta
 
 ### Epic 6: Monthly Summary
 
-- **US-6.1:** As a user, I can see a card with total group payments this month.
+- **US-6.1:** As a user, I can see a card with total payment in task this month.
 - **US-6.2:** As a user, I can see cards for each member's payments with avatar.
 
 ### Epic 7: Recurring Reminders
