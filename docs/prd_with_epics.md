@@ -9,7 +9,7 @@
 
 ## 1. Objective
 
-Enable households or small teams to capture bills/receipts, convert them into tasks, assign members, and notify assignees via LINE or fallback channels. MVP enhanced with LINE login, recurring reminders, profile images, and bill icons.
+Enable users to capture bills/receipts, convert them into tasks, assign to themselves or other members, and receive notifications via LINE or fallback channels. MVP enhanced with LINE login, recurring reminders, profile images, and bill icons.
 
 ---
 
@@ -25,18 +25,17 @@ Enable households or small teams to capture bills/receipts, convert them into ta
 - In-app notifications.
 - Mark Paid + proof upload.
 - Dashboard (upcoming, overdue, my tasks).
-- Escalation (manual button).
 - Profile images for members.
 - Bill icons in lists.
 - Login with LINE (stub).
 
 **Full Hackathon (48 hrs):**
 
+- line liff
 - LINE Notify integration.
-- Escalation rules.
 - Recurring reminders (weekly, monthly, yearly).
-- Monthly summary (group total + per-person cards).
-- Roles: Owner / Member.
+- Monthly summary (total payments + per-person cards).
+- local demo
 
 ---
 
@@ -51,7 +50,7 @@ Enable households or small teams to capture bills/receipts, convert them into ta
 ### Epic 2: Task Creation & Assignment
 
 - **US-2.1:** As a user, I can create a task linked to a bill so I can track responsibility.
-- **US-2.2:** As a user, I can assign a task to a group member and see their avatar.
+- **US-2.2:** As a user, I can assign a task to myself or another member and see their avatar.
 - **US-2.3:** As a user, I can view my assigned tasks on the dashboard.
 
 ### Epic 3: Notifications
@@ -62,41 +61,35 @@ Enable households or small teams to capture bills/receipts, convert them into ta
 
 ### Epic 4: Task Actions & History
 
-- **US-4.1:** As a user, I can mark a task as Paid so everyone knows it’s complete.
+- **US-4.1:** As a user, I can mark a task as Paid so everyone knows it's complete.
 - **US-4.2:** As a user, I can upload a payment slip as proof when marking Paid.
 - **US-4.3:** As a user, I can see completed tasks in history.
 
-### Epic 5: Escalation
+### Epic 5: Dashboard & Tracking
 
-- **US-5.1:** As a user, I can manually trigger escalation to reassign a task.
-- **US-5.2:** As a group owner, I can configure escalation order.
-- **US-5.3:** As a user, I receive a notification if a task is reassigned to me.
+- **US-5.1:** As a user, I can see upcoming tasks so I don't miss deadlines.
+- **US-5.2:** As a user, I can see overdue tasks highlighted so I know what's urgent.
+- **US-5.3:** As a user, I can filter tasks assigned to me.
 
-### Epic 6: Dashboard & Tracking
+### Epic 6: Monthly Summary
 
-- **US-6.1:** As a user, I can see upcoming tasks so I don’t miss deadlines.
-- **US-6.2:** As a user, I can see overdue tasks highlighted so I know what’s urgent.
-- **US-6.3:** As a user, I can filter tasks assigned to me.
+- **US-6.1:** As a user, I can see a card with total payments this month (all members combined).
+- **US-6.2:** As a user, I can see cards for each member's payments with avatar.
 
-### Epic 7: Monthly Summary
+### Epic 7: Recurring Reminders
 
-- **US-7.1:** As a user, I can see a card with total group payments this month.
-- **US-7.2:** As a user, I can see cards for each member’s payments with avatar.
+- **US-7.1:** As a user, I can choose a recurring reminder (weekly, monthly, yearly) when creating a bill.
+- **US-7.2:** As a user, I can specify details like day of week or day of month.
 
-### Epic 8: Recurring Reminders
+### Epic 8: Profile & Icons
 
-- **US-8.1:** As a user, I can choose a recurring reminder (weekly, monthly, yearly) when creating a bill.
-- **US-8.2:** As a user, I can specify details like day of week or day of month.
+- **US-8.1:** As a user, I can see profile images for members next to their tasks.
+- **US-8.2:** As a user, I can see contextual icons for each bill type (⚡Electric, 💧Water, 🌐Internet, 🚗Car, 🏠Home).
 
-### Epic 9: Profile & Icons
+### Epic 9: Login & Auth
 
-- **US-9.1:** As a user, I can see profile images for members next to their tasks.
-- **US-9.2:** As a user, I can see contextual icons for each bill type (⚡Electric, 💧Water, 🌐Internet, 🚗Car, 🏠Home).
-
-### Epic 10: Login & Auth
-
-- **US-10.1:** As a user, I can log in with LINE to personalize my experience.
-- **US-10.2:** As a user, I can see my avatar and name after login.
+- **US-9.1:** As a user, I can log in with LINE to personalize my experience.
+- **US-9.2:** As a user, I can see my avatar and name after login.
 
 ---
 
@@ -108,9 +101,8 @@ Enable households or small teams to capture bills/receipts, convert them into ta
 - LINE notification within 10s (demo).
 - Fallback to in-app notification always.
 - Mark Paid changes status, allows slip upload.
-- Manual escalation reassigns to next member.
 - Dashboard shows upcoming and overdue tasks.
-- Monthly summary shows group total + per-person cards, no extra list.
+- Monthly summary shows total payments + per-person cards, no extra list.
 - Icons visible in all lists.
 - Recurrence selection available in Add Bill.
 - LINE login shows avatar + name.
