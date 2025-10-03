@@ -1,16 +1,13 @@
 const { test, expect } = require('@playwright/test');
 
-test('should load the homepage', async ({ page }) => {
-  await page.goto('https://www.google.com/');
-  await expect(page).toHaveTitle(/Google/);
+test('should load dashboard and click add button', async ({ page }) => {
+  test.setTimeout(0); // Disable timeout
 
-  // Type "tqm ประกัน" in the search box
-  await page.fill('textarea[name="q"]', 'tqm ประกัน');
+  await page.goto('https://a4472cc35549.ngrok-free.app/dashboard');
 
-  // Press Enter to search
-  await page.press('textarea[name="q"]', 'Enter');
+  // Click add button
+  await page.click('button:has-text("add"), button:has-text("Add"), button:has-text("ADD")');
 
-  // Wait for search results and click the first result
-  await page.waitForSelector('h3');
-  await page.click('h3');
+  // Keep browser open after test
+  await page.waitForTimeout(999999999);
 });
