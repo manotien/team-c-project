@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Household Tasks & Bills — Mobile Preview</title>
+  <!-- Tailwind via CDN for quick preview -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* iOS-like bottom sheet animation helpers */
+    .sheet-hidden { transform: translateY(100%); }
+    .sheet-show { transform: translateY(0); }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <!-- Header -->
+  <header class="sticky top-0 z-20 bg-white border-b border-gray-200">
+    <div class="mx-auto max-w-md px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-md bg-indigo-600"></div>
+        <h1 class="font-semibold text-sm">Household Tasks & Bills</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnLineLogin" class="px-3 py-1.5 rounded-xl border border-gray-200 text-sm">Login with LINE</button>
+        <div id="userChip" class="hidden items-center gap-2">
+          <img id="userAvatar" class="w-6 h-6 rounded-full object-cover" alt="user"/>
+          <span id="userName" class="text-sm"></span>
+        </div>
+        <button id="btnOpenOCR" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-sm active:scale-95">Add Bill</button>
+        <button id="btnNotif" class="relative p-2 rounded-xl border border-gray-200" aria-label="Notifications">
+          <span>🔔</span>
+          <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-pink-500 rounded-full"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="mx-auto max-w-md px-4 pb-24">
+    <!-- KPI Row -->
+    <section class="grid grid-cols-2 gap-3 pt-4" id="kpiRow">
+      <!-- filled by JS -->
+    </section>
+
+    <!-- Upcoming Dues -->
+    <section class="mt-5">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">Upcoming Dues</h2>
+        <button class="text-sm text-indigo-600">View all</button>
+      </div>
+      <ul id="upcomingList" class="mt-2 space-y-2">
+        <!-- filled by JS -->
+      </ul>
+    </section>
+
+    <!-- Monthly Summary -->
+    <section class="mt-5">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">Monthly Summary</h2>
+        <span id="monthLabel" class="text-sm text-gray-500"></span>
+      </div>
+      <!-- Group Total -->
+      <div class="mt-2 rounded-2xl bg-white p-3 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between">
+          <p class="text-sm text-gray-500">Total</p>
+          <p id="groupTotal" class="text-sm font-semibold"></p>
+        </div>
+      </div>
+      <!-- Per-person cards -->
+      <div id="memberCards" class="mt-3 grid grid-cols-2 gap-3"></div>
+    </section>
+
+    <!-- My Tasks -->
+    <section class="mt-5">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">My Tasks</h2>
+        <button class="text-sm text-indigo-600">Filters</button>
+      </div>
+      <ul id="tasksList" class="mt-2 space-y-2"></ul>
+    </section>
+  </main>
+
+  <!-- Notifications Drawer -->
+  <aside id="notifSheet"
+    class="fixed inset-x-0 bottom-0 z-30 bg-white border-t border-gray-200 rounded-t-2xl shadow-xl transition-transform duration-300 sheet-hidden">
+    <div class="mx-auto max-w-md p-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold">Notifications</h3>
+        <button id="btnCloseNotif" class="p-2 rounded-xl border border-gray-200">Close</button>
+      </div>
+      <ul class="mt-3 space-y-2">
+        <li class="rounded-xl border border-gray-100 p-3 bg-gray-50 text-sm">Assigned to you: MEA Electric • due 05 Oct</li>
+        <li class="rounded-xl border border-gray-100 p-3 bg-gray-50 text-sm">Reassigned: Condo Fee → Yam</li>
+      </ul>
+    </div>
+  </aside>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 hidden">
+    <div class="rounded-xl bg-gray-900 text-white text-sm px-4 py-2 shadow-lg"></div>
+  </div>
+
+  <!-- Add Bill / OCR Modal -->
+  <div id="ocrModal" class="fixed inset-0 z-40 hidden items-end md:items-center md:justify-center">
+    <div class="absolute inset-0 bg-black/30" id="ocrBackdrop"></div>
+    <div class="relative w-full md:max-w-md bg-white rounded-t-2xl md:rounded-2xl shadow-xl border border-gray-200 p-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold">Add Bill</h3>
+        <button id="btnCloseOCR" class="p-2 rounded-xl border border-gray-200">Close</button>
+      </div>
+
+      <!-- Upload or Take Photo (single control) -->
+      <div class="mt-3">
+        <input id="billImage" type="file" accept="image/*" capture="environment" class="hidden" />
+        <label for="billImage" class="block rounded-xl border border-dashed border-gray-300 py-6 text-sm text-center active:scale-95">
+          Upload or Take Photo
+        </label>
+        <p id="fileName" class="mt-2 text-xs text-gray-500 truncate hidden"></p>
+      </div>
+
+      <!-- OCR Preview Form (mock) -->
+      <div class="mt-4 space-y-3">
+        <div>
+          <label class="text-xs text-gray-500">Vendor</label>
+          <input id="fldVendor" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm" placeholder="MEA / Waterworks"/>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-500">Amount (THB)</label>
+            <input id="fldAmount" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm" placeholder="0.00" inputmode="decimal"/>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500">Due Date</label>
+            <input id="fldDue" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm" type="date"/>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500">Assignee</label>
+          <select id="fldAssignee" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"></select>
+        </div>
+      </div>
+
+      <!-- Recurring Reminder -->
+      <div class="mt-3">
+        <label class="text-xs text-gray-500">Recurring Reminder</label>
+        <select id="fldRecurrence" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
+          <option value="none">None</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+        <div id="weeklyPicker" class="hidden mt-2">
+          <label class="text-xs text-gray-500">Day of Week</label>
+          <select id="fldWeekday" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
+            <option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option><option>Fri</option><option>Sat</option><option>Sun</option>
+          </select>
+        </div>
+        <div id="monthlyPicker" class="hidden mt-2">
+          <label class="text-xs text-gray-500">Day of Month</label>
+          <select id="fldMonthDay" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"></select>
+        </div>
+        <div id="yearlyPicker" class="hidden mt-2 grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-500">Month</label>
+            <select id="fldYearMonth" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"></select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500">Day</label>
+            <select id="fldYearDay" class="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 flex items-center justify-end gap-2">
+        <button id="btnCancelOCR" class="px-3 py-2 rounded-xl border border-gray-200 text-sm">Cancel</button>
+        <button id="btnSaveAssign" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-sm disabled:opacity-50" disabled>Save & Assign</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Mock Data (same spirit as React version) ---
+    const members = [
+      { name: "Art", avatar: "https://i.pravatar.cc/64?img=12" },
+      { name: "Yam", avatar: "https://i.pravatar.cc/64?img=32" },
+      { name: "Ploy", avatar: "https://i.pravatar.cc/64?img=45" },
+    ];
+    const upcoming = [
+      { id: "u1", date: "2025-10-05", label: "MEA Electric", amount: 1230, assignee: "Art" },
+      { id: "u2", date: "2025-10-08", label: "Waterworks", amount: 560, assignee: "Yam" },
+      { id: "u3", date: "2025-10-09", label: "Internet", amount: 799, assignee: "Art" },
+    ];
+    const myTasks = [
+      { id: "t1", title: "Pay Internet", amount: 799, due: "2025-10-06", assignee: "Art", status: "open" },
+      { id: "t2", title: "Condo Fee", amount: 2500, due: "2025-10-01", assignee: "Yam", status: "overdue" },
+    ];
+    const monthly = {
+      monthLabel: "Oct 2025",
+      total: 12450,
+      byMember: [
+        { name: "Art", total: 8200 },
+        { name: "Yam", total: 4250 },
+      ],
+    };
+
+    // --- Helpers ---
+    const $ = (sel) => document.querySelector(sel);
+    const el = (tag, cls = "", text = "") => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text) n.textContent = text;
+      return n;
+    };
+    const fmtTHB = (n) => `THB ${Number(n).toLocaleString()}`;
+    const fmtDate = (iso) => {
+      try {
+        const d = new Date(iso);
+        return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+      } catch { return iso; }
+    };
+    const billIcon = (label = "") => {
+      const l = label.toLowerCase();
+      if (/mea|electric|electricity|power/.test(l)) return "⚡";
+      if (/water|waterworks/.test(l)) return "💧";
+      if (/internet|wifi|broadband/.test(l)) return "🌐";
+      if (/car|auto|insurance/.test(l)) return "🚗";
+      if (/condo|home|house|maintenance/.test(l)) return "🏠";
+      return "📄";
+    };
+    const showToast = (msg) => {
+      const t = $("#toast"); t.classList.remove("hidden");
+      t.querySelector("div").textContent = msg;
+      setTimeout(() => t.classList.add("hidden"), 3000);
+    };
+
+    // --- Fill KPI Row ---
+    const kpiRow = $("#kpiRow");
+    const overdueCount = myTasks.filter(t => t.status === "overdue").length;
+    const kpis = [
+      { label: "This Month", value: fmtTHB(monthly.total) },
+      { label: "Due This Week", value: `${upcoming.length} items` },
+      { label: "Overdue Bills", value: `${overdueCount} items` },
+      { label: "My Share", value: fmtTHB(monthly.byMember.find(m => m.name === "Yam")?.total ?? 0) },
+    ];
+    kpis.forEach(k => {
+      const card = el("div", "rounded-2xl bg-white p-3 shadow-sm border border-gray-100");
+      const l = el("p", "text-xs text-gray-500", k.label);
+      const v = el("p", "mt-1 text-base font-semibold", k.value);
+      card.append(l, v); kpiRow.append(card);
+    });
+
+    // --- Fill Upcoming Dues ---
+    const upcomingList = $("#upcomingList");
+    upcoming.forEach(u => {
+      const li = el("li", "rounded-2xl bg-white p-3 shadow-sm border border-gray-100");
+      const row = el("div", "flex items-center justify-between");
+
+      const left = el("div");
+      const title = el("p", "text-sm font-medium flex items-center gap-2");
+      const icon = el("span", "", billIcon(u.label)); title.append(icon, document.createTextNode(" " + u.label));
+      const sub = el("p", "text-xs text-gray-500 flex items-center gap-1");
+      const img = el("img", "w-4 h-4 rounded-full object-cover"); img.src = members.find(m => m.name === u.assignee)?.avatar; img.alt = u.assignee;
+      sub.append(document.createTextNode(`Due ${fmtDate(u.date)} • `), img, document.createTextNode(" " + u.assignee));
+      left.append(title, sub);
+
+      const right = el("div", "text-right");
+      right.append(el("p", "text-sm font-semibold", fmtTHB(u.amount)));
+      row.append(left, right); li.append(row); upcomingList.append(li);
+    });
+
+    // --- Monthly Summary ---
+    $("#monthLabel").textContent = monthly.monthLabel;
+    $("#groupTotal").textContent = fmtTHB(monthly.total);
+    const memberCards = $("#memberCards");
+    monthly.byMember.forEach(m => {
+      const card = el("div", "rounded-2xl bg-white p-3 shadow-sm border border-gray-100");
+      const head = el("div", "flex items-center gap-2");
+      const img = el("img", "w-7 h-7 rounded-full object-cover"); img.src = members.find(mm => mm.name === m.name)?.avatar; img.alt = m.name;
+      const box = el("div");
+      const name = el("p", "text-sm font-medium", m.name);
+      const hint = el("p", "text-xs text-gray-500", "This month");
+      box.append(name, hint); head.append(img, box);
+      const val = el("p", "mt-2 text-base font-semibold", fmtTHB(m.total));
+      card.append(head, val); memberCards.append(card);
+    });
+
+    // --- My Tasks ---
+    const tasksList = $("#tasksList");
+    myTasks.forEach(t => {
+      const li = el("li", "rounded-2xl bg-white p-3 shadow-sm border border-gray-100");
+      const row = el("div", "flex items-center justify-between");
+
+      const left = el("div");
+      const title = el("p", "text-sm font-medium flex items-center gap-2");
+      if (t.status === "overdue") title.append(el("span", "text-red-500", "●"));
+      const icon = el("span", "", billIcon(t.title)); title.append(icon, document.createTextNode(" " + t.title));
+      const sub = el("p", "text-xs text-gray-500 flex items-center gap-1");
+      const img = el("img", "w-4 h-4 rounded-full object-cover"); img.src = members.find(m => m.name === t.assignee)?.avatar; img.alt = t.assignee;
+      sub.append(document.createTextNode(`Due ${fmtDate(t.due)} • `), img, document.createTextNode(" " + t.assignee));
+      left.append(title, sub);
+
+      const right = el("div", "text-right");
+      right.append(el("p", "text-sm font-semibold", fmtTHB(t.amount)));
+      row.append(left, right);
+      li.append(row);
+
+      const btns = el("div", "mt-2 flex items-center gap-2");
+      const btnPaid = el("button", "px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs", "Mark Paid");
+      const btnSecondary = el("button", "px-3 py-1.5 rounded-xl text-white text-xs " + (t.status === "overdue" ? "bg-rose-600" : "bg-indigo-600"), t.status === "overdue" ? "Escalate" : "Reassign");
+      const btnView = el("button", "px-3 py-1.5 rounded-xl border border-gray-200 text-xs", "View Bill");
+      btns.append(btnPaid, btnSecondary, btnView);
+      li.append(btns);
+      tasksList.append(li);
+    });
+
+    // --- Login with LINE (stub) ---
+    const btnLineLogin = $("#btnLineLogin");
+    const userChip = $("#userChip");
+    const userAvatar = $("#userAvatar");
+    const userName = $("#userName");
+    btnLineLogin.addEventListener("click", () => {
+      btnLineLogin.classList.add("hidden");
+      userChip.classList.remove("hidden", "flex"); // ensure visible
+      userChip.classList.add("flex");
+      userAvatar.src = "https://i.pravatar.cc/64?img=32";
+      userName.textContent = "Yam";
+      showToast("Logged in with LINE as Yam");
+    });
+
+    // --- Notifications Drawer ---
+    const notifSheet = $("#notifSheet");
+    $("#btnNotif").addEventListener("click", () => {
+      notifSheet.classList.remove("sheet-hidden"); notifSheet.classList.add("sheet-show");
+    });
+    $("#btnCloseNotif").addEventListener("click", () => {
+      notifSheet.classList.add("sheet-hidden"); notifSheet.classList.remove("sheet-show");
+    });
+
+    // --- OCR Modal ---
+    const ocrModal = $("#ocrModal");
+    const openOCR = () => { ocrModal.classList.remove("hidden"); ocrModal.classList.add("flex"); };
+    const closeOCR = () => { ocrModal.classList.add("hidden"); ocrModal.classList.remove("flex"); };
+    $("#btnOpenOCR").addEventListener("click", openOCR);
+    $("#btnCloseOCR").addEventListener("click", closeOCR);
+    $("#ocrBackdrop").addEventListener("click", closeOCR);
+
+    // Populate assignee dropdown
+    const fldAssignee = $("#fldAssignee");
+    members.forEach(m => {
+      const opt = document.createElement("option"); opt.value = m.name; opt.textContent = m.name; fldAssignee.append(opt);
+    });
+
+    // Recurrence pickers
+    const fldRecurrence = $("#fldRecurrence");
+    const weeklyPicker = $("#weeklyPicker");
+    const monthlyPicker = $("#monthlyPicker");
+    const yearlyPicker = $("#yearlyPicker");
+    const fldMonthDay = $("#fldMonthDay");
+    const fldYearMonth = $("#fldYearMonth");
+    const fldYearDay = $("#fldYearDay");
+    for (let d=1; d<=28; d++) {
+      const opt = document.createElement("option"); opt.value = d; opt.textContent = d; fldMonthDay.append(opt);
+      const opt2 = document.createElement("option"); opt2.value = d; opt2.textContent = d; fldYearDay.append(opt2);
+    }
+    for (let m=1; m<=12; m++) {
+      const opt = document.createElement("option"); opt.value = m; opt.textContent = m; fldYearMonth.append(opt);
+    }
+    fldRecurrence.addEventListener("change", (e) => {
+      weeklyPicker.classList.add("hidden");
+      monthlyPicker.classList.add("hidden");
+      yearlyPicker.classList.add("hidden");
+      const v = e.target.value;
+      if (v === "weekly") weeklyPicker.classList.remove("hidden");
+      if (v === "monthly") monthlyPicker.classList.remove("hidden");
+      if (v === "yearly") yearlyPicker.classList.remove("hidden");
+    });
+
+    // File input selection
+    const billImage = $("#billImage");
+    const fileName = $("#fileName");
+    billImage.addEventListener("change", () => {
+      fileName.textContent = billImage.files?.[0]?.name || "";
+      fileName.classList.toggle("hidden", !billImage.files?.length);
+      validateSave();
+    });
+
+    // Form fields
+    const fldVendor = $("#fldVendor");
+    const fldAmount = $("#fldAmount");
+    const fldDue = $("#fldDue");
+    [fldVendor, fldAmount, fldDue].forEach(inp => inp.addEventListener("input", validateSave));
+    function validateSave() {
+      $("#btnSaveAssign").disabled = !(fldAmount.value && fldDue.value);
+    }
+
+    // Save & Assign (mock)
+    $("#btnSaveAssign").addEventListener("click", () => {
+      closeOCR();
+      const assignee = fldAssignee.value || "Art";
+      const vendor = fldVendor.value || "Bill";
+      const amount = fldAmount.value || "-";
+      const rec = fldRecurrence.value;
+      const recLabel = rec === "none" ? "" : " • " + (rec === "weekly" ? "Weekly" : rec === "monthly" ? "Monthly" : "Yearly");
+      showToast(`Assigned to ${assignee}: ${vendor} • THB ${amount}${recLabel}`);
+      // reset
+      billImage.value = "";
+      fileName.textContent = ""; fileName.classList.add("hidden");
+      fldVendor.value = ""; fldAmount.value = ""; fldDue.value = "";
+      fldRecurrence.value = "none"; weeklyPicker.classList.add("hidden"); monthlyPicker.classList.add("hidden"); yearlyPicker.classList.add("hidden");
+      $("#btnSaveAssign").disabled = true;
+    });
+
+    // Cancel
+    $("#btnCancelOCR").addEventListener("click", closeOCR);
+  </script>
+</body>
+</html>
