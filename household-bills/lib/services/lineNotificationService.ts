@@ -5,7 +5,7 @@ import { BillType } from "@prisma/client";
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN!;
 const LINE_MESSAGING_API_URL = "https://api.line.me/v2/bot/message/push";
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "default-liff-id";
+const LIFF_ID = process.env.NEXT_PUBLIC_LINE_LIFF_ID || "default-liff-id";
 
 interface Bill {
   id: string;

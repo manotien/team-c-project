@@ -9,7 +9,7 @@ import { BillType } from "@prisma/client";
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN!;
 const LINE_MESSAGING_API_URL = "https://api.line.me/v2/bot/message/push";
-const LIFF_ID = process.env.NEXT_PUBLIC_LIFF_ID || "default-liff-id";
+const LIFF_ID = process.env.NEXT_PUBLIC_LINE_LIFF_ID || "default-liff-id";
 
 interface Task {
   id: string;
@@ -78,7 +78,7 @@ billNotificationsQueue.process(async (job) => {
   try {
     // Create Flex Message
     const message = createDueNotificationFlexMessage(task, type);
-
+    console.log(LINE_MESSAGING_API_URL, LINE_CHANNEL_ACCESS_TOKEN);
     // Send to LINE
     await axios.post(
       LINE_MESSAGING_API_URL,

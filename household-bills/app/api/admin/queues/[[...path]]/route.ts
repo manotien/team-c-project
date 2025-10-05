@@ -81,7 +81,18 @@ export async function GET(
 </head>
 <body class="bg-gray-50">
   <div class="container mx-auto p-8">
-    <h1 class="text-3xl font-bold mb-6 text-gray-900">Bill Notifications Queue Dashboard</h1>
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-bold text-gray-900">Bill Notifications Queue Dashboard</h1>
+      <button
+        onclick="refreshData()"
+        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Refresh
+      </button>
+    </div>
 
     <!-- Manual Trigger Form -->
     <div class="bg-white rounded-lg shadow p-6 mb-6">
@@ -204,15 +215,163 @@ export async function GET(
               <div class="text-sm text-gray-600">Delayed</div>
             </div>
           </div>
-          <button
-            onclick="loadQueueDetails('\${queue.name}')"
-            class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            View Details
-          </button>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button
+              onclick="loadQueueDetails('\${queue.name}')"
+              class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              View Details
+            </button>
+            \${queue.counts.delayed > 0 ? \`
+              <button
+                onclick="triggerAllDelayed()"
+                class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+              >
+                Trigger All Delayed (\${queue.counts.delayed})
+              </button>
+            \` : ''}
+            \${queue.counts.failed > 0 ? \`
+              <button
+                onclick="deleteAllFailed()"
+                class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Delete All Failed (\${queue.counts.failed})
+              </button>
+            \` : ''}
+            \${queue.counts.completed > 0 ? \`
+              <button
+                onclick="deleteAllCompleted()"
+                class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                Delete All Completed (\${queue.counts.completed})
+              </button>
+            \` : ''}
+          </div>
           <div id="details-\${queue.name}" class="mt-4 hidden"></div>
         </div>
       \`).join('');
+    }
+
+    async function triggerDelayedJob(jobId) {
+      if (!confirm('Are you sure you want to trigger this delayed job now?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/queues/api/trigger-delayed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          alert('Job triggered successfully!');
+          loadQueues();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error triggering job: ' + error.message);
+      }
+    }
+
+    async function deleteJob(jobId) {
+      if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/queues/api/delete-job', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          alert('Job deleted successfully!');
+          loadQueues();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error deleting job: ' + error.message);
+      }
+    }
+
+    async function deleteAllFailed() {
+      if (!confirm('Are you sure you want to delete ALL failed jobs? This action cannot be undone.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/queues/api/delete-failed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          alert(\`Successfully deleted \${result.count} failed jobs!\`);
+          loadQueues();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error deleting jobs: ' + error.message);
+      }
+    }
+
+    async function deleteAllCompleted() {
+      if (!confirm('Are you sure you want to delete ALL completed jobs? This action cannot be undone.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/queues/api/delete-completed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          alert(\`Successfully deleted \${result.count} completed jobs!\`);
+          loadQueues();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error deleting jobs: ' + error.message);
+      }
+    }
+
+    async function triggerAllDelayed() {
+      if (!confirm('Are you sure you want to trigger ALL delayed jobs now?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/queues/api/trigger-all-delayed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          alert(\`Successfully triggered \${result.count} delayed jobs!\`);
+          loadQueues();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error triggering jobs: ' + error.message);
+      }
     }
 
     async function loadQueueDetails(queueName) {
@@ -233,6 +392,22 @@ export async function GET(
                     <div class="text-gray-900"><strong>ID:</strong> \${job.id}</div>
                     <div class="text-gray-900"><strong>Data:</strong> <pre class="text-xs text-gray-800">\${JSON.stringify(job.data, null, 2)}</pre></div>
                     \${job.failedReason ? \`<div class="text-red-600"><strong>Error:</strong> \${job.failedReason}</div>\` : ''}
+                    <div class="mt-2 flex gap-2">
+                      \${status === 'delayed' ? \`
+                        <button
+                          onclick="triggerDelayedJob('\${job.id}')"
+                          class="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700"
+                        >
+                          Trigger Now
+                        </button>
+                      \` : ''}
+                      <button
+                        onclick="deleteJob('\${job.id}')"
+                        class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 \`).join('')}
               </div>
@@ -242,8 +417,13 @@ export async function GET(
       \`;
     }
 
-    // Auto-refresh every 5 seconds
-    setInterval(loadQueues, 5000);
+    // Manual refresh button
+    function refreshData() {
+      loadQueues();
+      loadTasks();
+    }
+
+    // Initial load
     loadQueues();
     loadTasks();
   </script>
@@ -306,6 +486,161 @@ export async function POST(
       jobId: job.id,
       message: `Job queued successfully for task ${taskId}`,
     });
+  }
+
+  // Trigger delayed job endpoint
+  if (pathname === "api/trigger-delayed") {
+    const body = await request.json();
+    const { jobId } = body;
+
+    if (!jobId) {
+      return NextResponse.json(
+        { error: "jobId is required" },
+        { status: 400 }
+      );
+    }
+
+    try {
+      // Get the job
+      const job = await billNotificationsQueue.getJob(jobId);
+
+      if (!job) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+
+      // Promote the delayed job to be processed immediately
+      await job.promote();
+
+      return NextResponse.json({
+        success: true,
+        jobId: job.id,
+        message: `Delayed job ${jobId} triggered successfully`,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Failed to trigger job",
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Trigger all delayed jobs endpoint
+  if (pathname === "api/trigger-all-delayed") {
+    try {
+      const delayedJobs = await billNotificationsQueue.getDelayed();
+
+      let count = 0;
+      for (const job of delayedJobs) {
+        await job.promote();
+        count++;
+      }
+
+      return NextResponse.json({
+        success: true,
+        count,
+        message: `Successfully triggered ${count} delayed jobs`,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Failed to trigger jobs",
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Delete individual job endpoint
+  if (pathname === "api/delete-job") {
+    const body = await request.json();
+    const { jobId } = body;
+
+    if (!jobId) {
+      return NextResponse.json(
+        { error: "jobId is required" },
+        { status: 400 }
+      );
+    }
+
+    try {
+      const job = await billNotificationsQueue.getJob(jobId);
+
+      if (!job) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+
+      await job.remove();
+
+      return NextResponse.json({
+        success: true,
+        jobId: job.id,
+        message: `Job ${jobId} deleted successfully`,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Failed to delete job",
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Delete all failed jobs endpoint
+  if (pathname === "api/delete-failed") {
+    try {
+      const failedJobs = await billNotificationsQueue.getFailed();
+
+      let count = 0;
+      for (const job of failedJobs) {
+        await job.remove();
+        count++;
+      }
+
+      return NextResponse.json({
+        success: true,
+        count,
+        message: `Successfully deleted ${count} failed jobs`,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Failed to delete jobs",
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Delete all completed jobs endpoint
+  if (pathname === "api/delete-completed") {
+    try {
+      const completedJobs = await billNotificationsQueue.getCompleted();
+
+      let count = 0;
+      for (const job of completedJobs) {
+        await job.remove();
+        count++;
+      }
+
+      return NextResponse.json({
+        success: true,
+        count,
+        message: `Successfully deleted ${count} completed jobs`,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Failed to delete jobs",
+        },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({ error: "Invalid endpoint" }, { status: 404 });

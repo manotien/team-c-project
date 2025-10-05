@@ -42,7 +42,7 @@ export default async function DashboardPage({
   const userId = user.id;
 
   // Fetch overdue tasks (UNPAID and past due date)
-  const overdueTasks = userId && view === 'upcoming'
+  const overdueTasksRaw = userId && view === 'upcoming'
     ? await prisma.task.findMany({
         where: {
           userId,
@@ -54,8 +54,17 @@ export default async function DashboardPage({
       })
     : [];
 
+  // Transform overdue tasks to convert Decimal to number
+  const overdueTasks = overdueTasksRaw.map((task) => ({
+    ...task,
+    bill: {
+      ...task.bill,
+      amount: Number(task.bill.amount),
+    },
+  }));
+
   // Fetch upcoming tasks (UNPAID and future/today due date)
-  const upcomingTasks = userId && view === 'upcoming'
+  const upcomingTasksRaw = userId && view === 'upcoming'
     ? await prisma.task.findMany({
         where: {
           userId,
@@ -67,6 +76,15 @@ export default async function DashboardPage({
         take: 10,
       })
     : [];
+
+  // Transform upcoming tasks to convert Decimal to number
+  const upcomingTasks = upcomingTasksRaw.map((task) => ({
+    ...task,
+    bill: {
+      ...task.bill,
+      amount: Number(task.bill.amount),
+    },
+  }));
 
   // Fetch completed tasks (PAID)
   const completedTasks = userId && view === 'completed'
