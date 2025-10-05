@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { BillType, Prisma } from "@prisma/client";
+import { sendBillCreatedNotification } from "@/lib/services/lineNotificationService";
+import { scheduleTaskNotifications } from "@/lib/services/notificationScheduler";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,7 @@ interface CreateBillRequest {
   imagePath: string;
   assigneeId: string;
   ocrData?: Prisma.InputJsonValue;
+  recurrence?: Prisma.InputJsonValue;
 }
 
 interface CreateBillResponse {
@@ -112,6 +115,7 @@ export async function POST(request: NextRequest) {
           billType,
           rawImageUrl: body.imagePath,
           ocrData: body.ocrData || {},
+          recurrence: body.recurrence || undefined,
         },
       });
 
@@ -130,6 +134,28 @@ export async function POST(request: NextRequest) {
 
       return { bill, task };
     });
+
+    // Send LINE notification (non-blocking)
+    // Fetch user's LINE ID and send notification in background
+    const user = await prisma.user.findUnique({
+      where: { id: body.assigneeId },
+      select: { lineUserId: true },
+    });
+
+    if (user?.lineUserId) {
+      // Fire and forget - don't await
+      sendBillCreatedNotification(
+        body.assigneeId,
+        user.lineUserId,
+        result.bill,
+        result.task
+      ).catch((error) => {
+        console.error("Background notification failed:", error);
+      });
+    }
+
+    // Schedule due date notifications
+    await scheduleTaskNotifications(result.task.id, result.task.dueDate);
 
     return NextResponse.json<CreateBillResponse>({
       success: true,

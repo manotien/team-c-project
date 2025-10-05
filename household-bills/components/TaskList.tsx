@@ -14,7 +14,7 @@ interface TaskListProps {
 export default function TaskList({ tasks }: TaskListProps) {
   if (tasks.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-gray-600">
         <p>No bills to pay yet</p>
       </div>
     );
