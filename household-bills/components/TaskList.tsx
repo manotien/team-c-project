@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import TaskCard from './TaskCard';
-import type { Task, Bill } from '@prisma/client';
+import TaskCard from "./TaskCard";
+import type { Task, Bill } from "@prisma/client";
 
 interface TaskWithBill extends Task {
   bill: Bill;
@@ -23,7 +23,7 @@ export default function TaskList({ tasks }: TaskListProps) {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold mb-4">My Tasks</h2>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4">
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} />
         ))}
