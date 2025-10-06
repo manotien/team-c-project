@@ -42,8 +42,8 @@ export default async function TaskDetailPage({
       : "bg-yellow-100 text-yellow-700";
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto p-4 md:p-6 max-w-4xl">
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto px-4 py-6 max-w-md">
         {/* Back Button */}
         <Link
           href="/dashboard"
@@ -66,11 +66,11 @@ export default async function TaskDetailPage({
         </Link>
 
         {/* Header Section */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-start gap-4 mb-4">
-            <span className="text-5xl">{getBillTypeIcon(task.bill.billType)}</span>
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+          <div className="flex items-start gap-3 mb-4">
+            <span className="text-4xl">{getBillTypeIcon(task.bill.billType)}</span>
             <div className="flex-1">
-              <h1 className="text-3xl font-bold mb-2">{task.bill.vendor}</h1>
+              <h1 className="text-2xl font-bold mb-2">{task.bill.vendor}</h1>
               <span
                 className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${statusColor}`}
               >
@@ -80,25 +80,25 @@ export default async function TaskDetailPage({
           </div>
 
           {/* Amount - Prominent Display */}
-          <div className="mb-6">
+          <div className="mb-4">
             <p className="text-sm text-gray-600 mb-1">Amount</p>
-            <p className="text-4xl md:text-5xl font-bold text-blue-600">
+            <p className="text-3xl font-bold text-blue-600">
               {formatCurrency(Number(task.bill.amount))}
             </p>
           </div>
 
           {/* Bill Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-600 mb-1">Bill Type</p>
-              <p className="text-lg font-semibold capitalize">
+              <p className="text-base font-semibold capitalize">
                 {task.bill.billType.toLowerCase()}
               </p>
             </div>
 
             <div>
               <p className="text-sm text-gray-600 mb-1">Due Date</p>
-              <p className="text-lg font-semibold">
+              <p className="text-base font-semibold">
                 {formatDate(task.dueDate)}
               </p>
             </div>
@@ -106,7 +106,7 @@ export default async function TaskDetailPage({
             {task.paidAt && (
               <div>
                 <p className="text-sm text-gray-600 mb-1">Paid Date</p>
-                <p className="text-lg font-semibold text-green-600">
+                <p className="text-base font-semibold text-green-600">
                   {formatDate(task.paidAt)}
                 </p>
               </div>
@@ -114,7 +114,7 @@ export default async function TaskDetailPage({
 
             <div>
               <p className="text-sm text-gray-600 mb-1">Created Date</p>
-              <p className="text-lg font-semibold">
+              <p className="text-base font-semibold">
                 {formatDate(task.createdAt)}
               </p>
             </div>
@@ -123,8 +123,8 @@ export default async function TaskDetailPage({
 
         {/* Original Receipt Image */}
         {task.bill.rawImageUrl && (
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="font-semibold text-lg mb-3">Original Receipt</h2>
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <h2 className="font-semibold text-base mb-3">Original Receipt</h2>
             <ImageModal src={task.bill.rawImageUrl} alt="Original receipt">
               <Image
                 src={task.bill.rawImageUrl}
@@ -140,8 +140,8 @@ export default async function TaskDetailPage({
 
         {/* Payment Proof */}
         {task.paymentProofUrl && (
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="font-semibold text-lg mb-3">Payment Proof</h2>
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+            <h2 className="font-semibold text-base mb-3">Payment Proof</h2>
             {task.paymentProofUrl.endsWith(".pdf") ? (
               <a
                 href={task.paymentProofUrl}
@@ -172,8 +172,8 @@ export default async function TaskDetailPage({
         )}
 
         {/* Action Buttons */}
-        <div className="space-y-3">
-          {task.status === "UNPAID" && (
+        {task.status === "UNPAID" && (
+          <div className="mt-4">
             <MarkPaidButton
               task={{
                 id: task.id,
@@ -184,8 +184,8 @@ export default async function TaskDetailPage({
                 },
               }}
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

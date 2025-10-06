@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,6 +50,7 @@ const BILL_TYPES = [
 type ViewState = "capture" | "preview" | "edit";
 
 export function BillCapture() {
+  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [viewState, setViewState] = React.useState<ViewState>("capture");
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
@@ -255,6 +257,8 @@ export function BillCapture() {
       // Success - close modal and reset
       alert("Bill saved successfully!");
       handleClose();
+      // Refresh the dashboard to show updated upcoming tasks
+      router.refresh();
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to save bill";
