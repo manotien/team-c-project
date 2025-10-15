@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,12 +32,11 @@ interface FormData {
   assigneeId: string;
 }
 
-// Mock household members - in real app, fetch from API
-const HOUSEHOLD_MEMBERS = [
-  { id: "user-1", name: "Art" },
-  { id: "user-2", name: "Yam" },
-  { id: "user-3", name: "Ploy" },
-];
+interface HouseholdMember {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
 
 const BILL_TYPES = [
   { value: "ELECTRIC", label: "⚡ Electric", icon: "⚡" },
@@ -50,6 +50,7 @@ const BILL_TYPES = [
 type ViewState = "capture" | "preview" | "edit";
 
 export function BillCapture() {
+  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [viewState, setViewState] = React.useState<ViewState>("capture");
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
@@ -60,14 +61,45 @@ export function BillCapture() {
   const [ocrData, setOcrData] = React.useState<OcrData | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Household members state
+  const [householdMembers, setHouseholdMembers] = React.useState<HouseholdMember[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = React.useState(true);
+
   // Form state
   const [formData, setFormData] = React.useState<FormData>({
     vendor: "",
     amount: "",
     dueDate: "",
     billType: "OTHER",
-    assigneeId: HOUSEHOLD_MEMBERS[0].id,
+    assigneeId: "",
   });
+
+  // Fetch household members
+  React.useEffect(() => {
+    async function fetchMembers() {
+      try {
+        const response = await fetch("/api/users");
+        const data = await response.json();
+
+        if (response.ok && data.users) {
+          setHouseholdMembers(data.users);
+          // Set default assignee to first user
+          if (data.users.length > 0) {
+            setFormData((prev) => ({
+              ...prev,
+              assigneeId: prev.assigneeId || data.users[0].id,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch household members:", error);
+      } finally {
+        setIsLoadingMembers(false);
+      }
+    }
+
+    fetchMembers();
+  }, []);
 
   const [formErrors, setFormErrors] = React.useState<Partial<FormData>>({});
 
@@ -225,6 +257,8 @@ export function BillCapture() {
       // Success - close modal and reset
       alert("Bill saved successfully!");
       handleClose();
+      // Refresh the dashboard to show updated upcoming tasks
+      router.refresh();
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to save bill";
@@ -250,7 +284,7 @@ export function BillCapture() {
       amount: "",
       dueDate: "",
       billType: "OTHER",
-      assigneeId: HOUSEHOLD_MEMBERS[0].id,
+      assigneeId: householdMembers[0]?.id || "",
     });
     setFormErrors({});
     if (fileInputRef.current) {
@@ -476,12 +510,17 @@ export function BillCapture() {
                       setFormData({ ...formData, assigneeId: e.target.value })
                     }
                     className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    disabled={isLoadingMembers}
                   >
-                    {HOUSEHOLD_MEMBERS.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name}
-                      </option>
-                    ))}
+                    {isLoadingMembers ? (
+                      <option>Loading members...</option>
+                    ) : (
+                      householdMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 

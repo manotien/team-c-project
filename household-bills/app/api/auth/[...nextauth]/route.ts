@@ -1,12 +1,6 @@
-// NextAuth API route placeholder
-// To be configured in future stories
+import NextAuth from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-import { NextRequest, NextResponse } from 'next/server';
+const handler = NextAuth(authOptions);
 
-export async function GET(request: NextRequest) {
-  return NextResponse.json({ message: 'NextAuth not configured yet' }, { status: 501 });
-}
-
-export async function POST(request: NextRequest) {
-  return NextResponse.json({ message: 'NextAuth not configured yet' }, { status: 501 });
-}
+export { handler as GET, handler as POST };
